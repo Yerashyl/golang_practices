@@ -40,6 +40,10 @@ func main() {
 	}
 	models.Mu.Unlock()
 
+	// Global Middleware
+	r.Use(middleware.OptionalJWTAuthMiddleware())
+	r.Use(middleware.RateLimiter())
+
 	// Public routes
 	r.POST("/register", handlers.Register)
 	r.POST("/login", handlers.Login)
@@ -49,10 +53,9 @@ func main() {
 	// Protected routes
 	auth := r.Group("/")
 	auth.Use(middleware.JWTAuthMiddleware())
-	auth.Use(middleware.RateLimiter())
 	{
-		// TASK 1: Get user info from JWT
-		auth.GET("/users/me", handlers.GetMe)
+		// TASK 1: Get user info from JWT (Only for verified users)
+		auth.GET("/users/me", middleware.VerifiedMiddleware(), handlers.GetMe)
 
 		// TASK 2: Role-based access (admin only)
 		adminOnly := auth.Group("/")

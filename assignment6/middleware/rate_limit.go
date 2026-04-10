@@ -17,14 +17,14 @@ type rateLimitInfo struct {
 var (
 	rateLimitStore = make(map[string]*rateLimitInfo)
 	mu             sync.Mutex
-	Limit          = 5 // 5 requests per minute
+	Limit          = 10 // 10 requests per minute
 )
 
 func RateLimiter() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var key string
 
-		// Try to identify by UserID from JWT first
+		// If OptionalJWTAuthMiddleware set userID, use it. Otherwise use IP.
 		userID, exists := c.Get("userID")
 		if exists {
 			key = fmt.Sprintf("user:%v", userID)
@@ -33,29 +33,29 @@ func RateLimiter() gin.HandlerFunc {
 		}
 
 		mu.Lock()
+		defer mu.Unlock()
+
 		info, ok := rateLimitStore[key]
 		now := time.Now()
 
 		if !ok || now.Sub(info.LastAccess) > time.Minute {
-			// New window
 			rateLimitStore[key] = &rateLimitInfo{
 				Count:      1,
 				LastAccess: now,
 			}
-			mu.Unlock()
 			c.Next()
 			return
 		}
 
 		if info.Count >= Limit {
-			mu.Unlock()
-			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests. Please try again later."})
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Too many requests. Limit is " + fmt.Sprint(Limit) + " requests per minute.",
+			})
 			c.Abort()
 			return
 		}
 
 		info.Count++
-		mu.Unlock()
 		c.Next()
 	}
 }

@@ -227,8 +227,19 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Issue new Access Token
-	accessToken, newRefreshToken, err := utils.GenerateTokens(claims.UserID, claims.Email, claims.Role)
+	// Issue new Access Token with LATEST role from "DB"
+	models.Mu.RLock()
+	user, exists := models.Users[claims.Email]
+	models.Mu.RUnlock()
+
+	var role string
+	if exists {
+		role = user.Role
+	} else {
+		role = claims.Role // Fallback
+	}
+
+	accessToken, newRefreshToken, err := utils.GenerateTokens(claims.UserID, claims.Email, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not regenerate tokens"})
 		return
